@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/apiConfig';
 import { jwtUtils } from '../utils/jwtUtils';
+import type { BloodGroup, User } from '../types';
 
-interface User {
-  id?: string;
+interface UserPayload {
+  id?: number;
   name?: string;
   email: string;
   password?: string;
@@ -17,15 +18,46 @@ interface User {
   address?: string;
   isActive?: boolean;
   isVerified?: boolean;
-  registrationDate?: string;
 }
 
-interface DonationRecord {
+interface RegisterPayload {
+  fullName: string;
+  email: string;
+  password: string;
+  phone: string;
+  division: string;
+  district: string;
+  upazila: string;
+  address?: string;
+  bloodGroup: string;
+}
+
+interface RawDonation {
+  id: number;
+  donor: { id: number };
   donationDate: string;
   location: string;
   notes?: string;
   recipientContact?: string;
-  donor: { id: number };
+  createdAt?: string;
+}
+
+interface RawAdminUser {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  division: string;
+  district: string;
+  upazila: string;
+  address: string;
+  bloodGroup: string;
+  role: string;
+  isActive: boolean;
+  isVerified: boolean;
+  totalDonations: number;
+  lastDonationDate?: string;
+  createdAt?: string;
 }
 
 interface SearchParams {
@@ -108,14 +140,31 @@ const parseDateFromBackend = (dateString: string): string => {
   }
 };
 
+const extractErrorMessage = (error: unknown, fallback: string): string => {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { message?: string; error?: string } | string | undefined;
+    if (typeof data === 'string' && data) return data;
+    if (data && typeof data === 'object') {
+      if (data.message) return data.message;
+      if (data.error) return data.error;
+    }
+    return error.message || fallback;
+  }
+  if (error instanceof Error) return error.message;
+  return fallback;
+};
+
 export const apiService = {
   getCurrentUser: () => jwtUtils.getTokenInfo(),
-  getCurrentUserId: (): number | null => jwtUtils.getUserId() ? parseInt(jwtUtils.getUserId(), 10) : null,
+  getCurrentUserId: (): number | null => {
+    const userId = jwtUtils.getUserId();
+    return userId ? parseInt(userId, 10) : null;
+  },
   isAuthenticated: (): boolean => {
     const token = localStorage.getItem('token');
     return token !== null && !jwtUtils.isTokenExpired();
   },
-  register: async (userData: any) => {
+  register: async (userData: RegisterPayload) => {
     try {
       const response = await api.post('/auth/register', {
         name: userData.fullName,
@@ -129,12 +178,12 @@ export const apiService = {
         bloodGroup: bloodGroupToEnumMap[userData.bloodGroup] || userData.bloodGroup,
       });
       return response.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Registration error:', error);
       throw error;
     }
   },
-  login: async (user: User) => {
+  login: async (user: UserPayload) => {
     try {
       const response = await api.post('/auth/login', { email: user.email, passwordHash: user.password });
       const authHeader = response.headers['authorization'] || response.headers['Authorization'] || response.headers['AUTHORIZATION'];
@@ -144,7 +193,7 @@ export const apiService = {
         jwtUtils.getTokenInfo();
       }
       return response.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Login error:', error);
       throw error;
     }
@@ -161,38 +210,32 @@ export const apiService = {
       const payload = { donationDate: formattedDate, location: donationData.location.trim(), recipientContact: donationData.recipientContact?.trim() || '', notes: donationData.notes?.trim() || '', donor: { id: donorId } };
       const response = await api.post('/donations', payload);
       return response.data || { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Failed to add donation:', error);
-      if (error.response?.data?.message) throw new Error(error.response.data.message);
-      else if (error.response?.data?.error) throw new Error(error.response.data.error);
-      else if (error.response?.data && typeof error.response.data === 'string') throw new Error(error.response.data);
-      else if (error.message) throw new Error(error.message);
-      else throw new Error('Failed to add donation record. Please try again.');
+      throw new Error(extractErrorMessage(error, 'Failed to add donation record. Please try again.'));
     }
   },
   getDonations: async (donorId?: number) => {
     try {
-      let targetDonorId = donorId;
+      let targetDonorId: number | null | undefined = donorId;
       if (!targetDonorId) {
         targetDonorId = apiService.getCurrentUserId();
         if (!targetDonorId) throw new Error('Unable to determine donor ID. Please login again.');
       }
       if (!targetDonorId || typeof targetDonorId !== 'number' || targetDonorId <= 0) throw new Error(`Invalid donor ID: ${targetDonorId}`);
       const response = await api.get(`/donations/${targetDonorId}`);
-      const donations = (response.data || []).map((donation: any) => ({
+      const donations = ((response.data || []) as RawDonation[]).map((donation) => ({
         ...donation,
         donationDate: donation.donationDate ? parseDateFromBackend(donation.donationDate) : donation.donationDate,
         donationTimestamp: donation.donationDate,
         id: donation.id?.toString() || Math.random().toString(),
-        donor: { ...donation.donor, id: donation.donor?.id?.toString() || targetDonorId.toString() }
+        donor: { ...donation.donor, id: donation.donor?.id ?? targetDonorId }
       }));
       return donations;
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Failed to fetch donations:', error);
-      if (error.response?.status === 404) return [];
-      else if (error.response?.data?.message) throw new Error(error.response.data.message);
-      else if (error.message) throw new Error(error.message);
-      else throw new Error('Failed to fetch donation records');
+      if (axios.isAxiosError(error) && error.response?.status === 404) return [];
+      throw new Error(extractErrorMessage(error, 'Failed to fetch donation records'));
     }
   },
   getDonationStats: async (donorId?: number) => {
@@ -202,25 +245,25 @@ export const apiService = {
       const donations = await apiService.getDonations(targetDonorId);
       const stats = {
         totalDonations: donations.length,
-        lastDonationDate: donations.length > 0 ? donations.sort((a: any, b: any) => {
+        lastDonationDate: donations.length > 0 ? donations.sort((a, b) => {
           const dateA = new Date(a.donationTimestamp || a.donationDate);
           const dateB = new Date(b.donationTimestamp || b.donationDate);
           return dateB.getTime() - dateA.getTime();
         })[0].donationDate : null,
-        donationsThisYear: donations.filter((d: any) => new Date(d.donationTimestamp || d.donationDate).getFullYear() === new Date().getFullYear()).length
+        donationsThisYear: donations.filter((d) => new Date(d.donationTimestamp || d.donationDate).getFullYear() === new Date().getFullYear()).length
       };
       return stats;
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Failed to calculate donation stats:', error);
       throw error;
     }
   },
-  updateUser: async (id: number, userData: User) => {
+  updateUser: async (id: number, userData: UserPayload) => {
     try {
       if (!userData.name || !userData.email) throw new Error('Name and email are required');
       const currentToken = localStorage.getItem('token');
       if (!apiService.isAuthenticated()) throw new Error('Authentication required. Please login again.');
-      const updatePayload = {
+      const updatePayload: UserPayload & { id: number } = {
         id: id,
         name: userData.name.trim(),
         email: userData.email.trim(),
@@ -244,25 +287,27 @@ export const apiService = {
         apiService.isAuthenticated();
       }
       return response.data || { success: true, message: 'Profile updated successfully', ...updatePayload };
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Profile update failed:', error);
-      if (error.authenticationError || error.response?.status === 401) throw new Error('Authentication session expired. Please login again.');
-      else if (error.response?.status === 400) throw new Error(error.response?.data?.message || 'Invalid profile data provided');
-      else if (error.response?.status === 403) throw new Error('You do not have permission to update this profile');
-      else if (error.response?.status === 404) throw new Error('User profile not found');
-      else if (error.response?.status >= 500) throw new Error('Server error occurred. Please try again later.');
-      else if (error.code === 'NETWORK_ERROR' || error.message?.includes('Network')) throw new Error('Network error. Please check your connection.');
-      else throw new Error(error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to update profile. Please try again.');
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) throw new Error('Authentication session expired. Please login again.');
+        if (error.response?.status === 400) throw new Error(error.response?.data?.message || 'Invalid profile data provided');
+        if (error.response?.status === 403) throw new Error('You do not have permission to update this profile');
+        if (error.response?.status === 404) throw new Error('User profile not found');
+        if (error.response?.status && error.response.status >= 500) throw new Error('Server error occurred. Please try again later.');
+        if (error.code === 'ERR_NETWORK' || error.message?.includes('Network')) throw new Error('Network error. Please check your connection.');
+      }
+      throw new Error(extractErrorMessage(error, 'Failed to update profile. Please try again.'));
     }
   },
-  handleTokenRefresh: async (error: any) => {
-    if (error.response?.status === 401) {
+  handleTokenRefresh: async (error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
       const token = localStorage.getItem('token');
       if (token && !jwtUtils.isTokenExpired()) {
         try {
           const tokenInfo = jwtUtils.getTokenInfo();
           if (tokenInfo) return true;
-        } catch (e) {
+        } catch {
           console.log('API: Token is actually expired, removing...');
           localStorage.removeItem('token');
           return false;
@@ -278,7 +323,7 @@ export const apiService = {
     try {
       const response = await api.get(`/users/${id}`);
       return response.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Failed to fetch user:', error);
       throw error;
     }
@@ -310,16 +355,20 @@ export const apiService = {
       const userId = apiService.getCurrentUserId();
       if (!userId) throw new Error('User not authenticated');
       return await apiService.getUser(userId);
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Failed to fetch current user profile:', error);
       throw error;
     }
   },
-  getAllUsers: async () => {
+  getAllUsers: async (): Promise<User[]> => {
     try {
       const response = await api.get('/admin/users');
-      return response.data.map((user: any) => ({ ...user, id: user.id.toString(), registrationDate: parseDateFromBackend(user.registrationDate) }));
-    } catch (error: any) {
+      return (response.data as RawAdminUser[]).map((user) => ({
+        ...user,
+        bloodGroup: (bloodGroupFromEnumMap[user.bloodGroup] || user.bloodGroup) as BloodGroup,
+        role: user.role as User['role'],
+      }));
+    } catch (error) {
       console.error('API: Failed to fetch all users:', error);
       throw error;
     }
@@ -328,7 +377,7 @@ export const apiService = {
     try {
       const response = await api.put(`/admin/verify/${id}`);
       return response.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Failed to verify user:', error);
       throw error;
     }
@@ -337,7 +386,7 @@ export const apiService = {
     try {
       const response = await api.put(`/admin/disable/${id}`);
       return response.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Failed to disable user:', error);
       throw error;
     }
@@ -346,7 +395,7 @@ export const apiService = {
     try {
       const response = await api.put(`/admin/reactive/${id}`);
       return response.data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Failed to reactivate user:', error);
       throw error;
     }
@@ -354,13 +403,13 @@ export const apiService = {
   searchDonors: async (params: SearchParams) => {
     try {
       const searchParams = { bloodGroup: params.bloodGroup, division: params.division, district: params.district, upazila: params.upazila };
-      const cleanParams = Object.fromEntries(Object.entries(searchParams).filter(([_, v]) => v !== undefined && v !== ''));
+      const cleanParams = Object.fromEntries(Object.entries(searchParams).filter(([, v]) => v !== undefined && v !== ''));
       const response = await api.get('/search', { params: cleanParams });
-      const transformedResults = (response.data || []).map((donor: any) => ({ ...donor, bloodGroup: bloodGroupFromEnumMap[donor.bloodGroup] || donor.bloodGroup }));
+      const transformedResults = (response.data || []).map((donor: RawAdminUser) => ({ ...donor, bloodGroup: bloodGroupFromEnumMap[donor.bloodGroup] || donor.bloodGroup }));
       return transformedResults;
-    } catch (error: any) {
+    } catch (error) {
       console.error('API: Failed to search donors:', error);
-      if (error.response?.status === 404) return [];
+      if (axios.isAxiosError(error) && error.response?.status === 404) return [];
       throw error;
     }
   },

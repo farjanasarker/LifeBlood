@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Search, MapPin, Phone, Clock, Droplet, Filter } from 'lucide-react';
 import { BloodGroup, User } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -28,6 +29,12 @@ interface DonorResult {
   lastDonationDate?: string;
   isActive: boolean;
   isVerified: boolean;
+}
+
+interface RawDonorResult extends Omit<DonorResult, 'isActive' | 'isVerified' | 'address'> {
+  address?: string;
+  isActive?: boolean;
+  isVerified?: boolean;
 }
 
 export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
@@ -91,9 +98,6 @@ export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
       };
 
       console.log('DonorSearch: Sending search params to backend:', searchParams);
-      console.log('DonorSearch: Backend URL will be:', 
-        `${apiService.baseURL}/search?bloodGroup=${searchParams.bloodGroup}&division=${searchParams.division}&district=${searchParams.district}&upazila=${searchParams.upazila}`
-      );
 
       const searchResults = await apiService.searchDonors(searchParams);
       console.log('DonorSearch: Search results received:', searchResults);
@@ -103,7 +107,7 @@ export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
         setDonors([]);
         return;
       }
-       const transformedDonors: DonorResult[] = searchResults.map((donor: any) => ({
+       const transformedDonors: DonorResult[] = searchResults.map((donor: RawDonorResult) => ({
         id: donor.id,
         name: donor.name,
         email: donor.email,
@@ -124,35 +128,40 @@ export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
         console.log('DonorSearch: Saving search to user history');
       }
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('DonorSearch: Search failed:', error);
-      
+
       let errorMessage = 'Failed to search for donors';
-      
-      if (error.response) {
-        switch (error.response.status) {
-          case 400:
-            errorMessage = 'Invalid search parameters. Please check your input.';
-            break;
-          case 401:
-            errorMessage = 'Authentication required. Please login to search.';
-            break;
-          case 404:
-            errorMessage = 'No donors found matching your criteria.';
-            setDonors([]); // Set empty array for 404
-            return;
-          case 500:
-            errorMessage = 'Server error. Please try again later.';
-            break;
-          default:
-            errorMessage = `Search failed: ${error.response.status}`;
+
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          switch (error.response.status) {
+            case 400:
+              errorMessage = 'Invalid search parameters. Please check your input.';
+              break;
+            case 401:
+              errorMessage = 'Authentication required. Please login to search.';
+              break;
+            case 404:
+              setError('No donors found matching your criteria.');
+              setDonors([]); // Set empty array for 404
+              setLoading(false);
+              return;
+            case 500:
+              errorMessage = 'Server error. Please try again later.';
+              break;
+            default:
+              errorMessage = `Search failed: ${error.response.status}`;
+          }
+        } else if (error.request) {
+          errorMessage = 'Network error. Please check your connection.';
+        } else {
+          errorMessage = error.message || 'Search failed';
         }
-      } else if (error.request) {
-        errorMessage = 'Network error. Please check your connection.';
-      } else {
-        errorMessage = error.message || 'Search failed';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
       }
-      
+
       setError(errorMessage);
     }
 
@@ -164,7 +173,7 @@ export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
       setDonors([]);
       setError(null);
     }
-  }, [searchFilters]);
+  }, [searchFilters, hasSearched]);
 
   // Calculate eligibility status based on last donation (4 months as per backend)
   const getDonorStatus = (lastDonationDate?: string) => {

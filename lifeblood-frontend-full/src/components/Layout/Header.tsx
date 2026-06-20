@@ -120,11 +120,9 @@ import { User as UserType } from '../../types';
 interface HeaderProps {
   user: UserType | null;
   onLogout: () => void;
-  currentPage: string;
-  onNavigate: (page: string) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onLogout, currentPage, onNavigate }) => {
+export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   

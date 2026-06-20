@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Shield, Ban, Check, X, Search, Filter } from 'lucide-react';
+import { Users, Shield, Ban, Check, Search, Filter } from 'lucide-react';
 import { User } from '../../types';
 import { apiService } from '../../services/apiService';
 
@@ -32,7 +32,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
       // Filter out current admin user
       const filteredUsers = allUsers.filter((user: User) => user.id !== currentUser.id);
       setUsers(filteredUsers);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load users:', err);
       setError('Failed to load users. Please try again.');
     } finally {
@@ -72,27 +72,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
     setFilteredUsers(filtered);
   };
 
-  const handleVerifyUser = async (userId: string) => {
+  const handleVerifyUser = async (userId: number) => {
     try {
       setError(null);
-      await apiService.verifyUser(parseInt(userId));
+      await apiService.verifyUser(userId);
       await loadUsers();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to verify user:', err);
       setError('Failed to verify user. Please try again.');
     }
   };
 
-  const handleToggleUserStatus = async (userId: string, isCurrentlyActive: boolean) => {
+  const handleToggleUserStatus = async (userId: number, isCurrentlyActive: boolean) => {
     try {
       setError(null);
       if (isCurrentlyActive) {
-        await apiService.disableUser(parseInt(userId));
+        await apiService.disableUser(userId);
       } else {
-        await apiService.reactiveUser(parseInt(userId));
+        await apiService.reactiveUser(userId);
       }
       await loadUsers();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to toggle user status:', err);
       setError('Failed to toggle user status. Please try again.');
     }
@@ -109,7 +109,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
   };
 
   // Format date for createdAt field from your database
-  const formatRegistrationDate = (dateString: string) => {
+  const formatRegistrationDate = (dateString?: string) => {
     if (!dateString) return 'Invalid Date';
     
     try {
@@ -126,7 +126,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         hour: '2-digit',
         minute: '2-digit'
       });
-    } catch (error) {
+    } catch {
       return 'Invalid Date';
     }
   };

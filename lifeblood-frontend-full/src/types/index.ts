@@ -1,32 +1,31 @@
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
-  password: string;
   bloodGroup: BloodGroup;
   phone: string;
   address: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  latitude?: number;
-  longitude?: number;
+  division: string;
+  district: string;
+  upazila: string;
   role: 'donor' | 'recipient' | 'admin';
   isVerified: boolean;
   isActive: boolean;
   lastDonationDate?: string;
-  isAvailable: boolean;
-  registrationDate: string;
+  totalDonations: number;
+  createdAt?: string;
+  updatedAt?: string;
   searchHistory?: SearchRecord[];
 }
 
 export interface DonationRecord {
-  id: string;
-  donorId: string;
-  date: string;
+  id: number;
+  donor: { id: number };
+  donationDate: string;
   location: string;
+  recipientContact?: string;
   notes?: string;
-  recipientId?: string;
+  createdAt?: string;
 }
 
 export interface SearchRecord {

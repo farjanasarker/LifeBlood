@@ -31,7 +31,7 @@ export const locationUtils = {
   },
 
   // Mock geocoding for demo purposes
-  async geocodeAddress(address: string, city: string, state: string): Promise<Coordinates | null> {
+  async geocodeAddress(city: string, state: string): Promise<Coordinates | null> {
     // In a real app, you'd use a geocoding service like Google Maps API
     const mockCoordinates: { [key: string]: Coordinates } = {
       'New York, NY': { latitude: 40.7128, longitude: -74.0060 },

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Header } from './components/Layout/Header';
 import { Footer } from './components/Layout/Footer';
@@ -9,14 +9,16 @@ import { DonorSearch } from './components/Search/DonorSearch';
 import { UserDashboard } from './components/Dashboard/UserDashboard';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { useAuth } from './hooks/useAuth';
+import type { RegisterFormData } from './hooks/useAuth';
 import { storageUtils } from './utils/storage';
+import type { User } from './types';
 
 // Protected Route Component
-const ProtectedRoute = ({ children, allowedRoles = [], user }) => {
+const ProtectedRoute = ({ children, allowedRoles = [], user }: { children: ReactNode; allowedRoles?: string[]; user: User | null }) => {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  
+
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -27,12 +29,12 @@ const ProtectedRoute = ({ children, allowedRoles = [], user }) => {
       </div>
     );
   }
-  
+
   return children;
 };
 
 // Auth Route Component (redirects if already logged in)
-const AuthRoute = ({ children, user }) => {
+const AuthRoute = ({ children, user }: { children: ReactNode; user: User | null }) => {
   if (user) {
     // Redirect based on user role
     if (user.role === 'admin') {
@@ -90,7 +92,7 @@ function AppContent() {
     return result;
   };
 
-  const handleRegister = async (userData: any) => {
+  const handleRegister = async (userData: RegisterFormData) => {
     console.log('App: Handling registration...');
     console.log('App: Registration data received:', userData);
     
@@ -156,7 +158,7 @@ function AppContent() {
     console.log('App: Navigating to:', page);
     
     // Convert page names to routes
-    const routeMap = {
+    const routeMap: Record<string, string> = {
       'home': '/',
       'login': '/login',
       'register': '/register',
@@ -164,7 +166,7 @@ function AppContent() {
       'dashboard': '/dashboard',
       'admin': '/admin'
     };
-    
+
     const route = routeMap[page] || '/';
     
     // Only navigate if we're not already on the target route
@@ -174,7 +176,7 @@ function AppContent() {
   };
 
   // FIXED: Enhanced updateUser to handle local storage and prevent unwanted redirects
-  const handleUpdateUser = async (updatedUser: UserType) => {
+  const handleUpdateUser = async (updatedUser: User) => {
   console.log('App: handleUpdateUser called with:', updatedUser);
 
   try {
@@ -199,7 +201,6 @@ function AppContent() {
   }
 
   const showHeaderFooter = !['/login', '/register'].includes(location.pathname);
-  const currentPage = location.pathname.substring(1) || 'home'; // Remove leading slash
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -207,8 +208,6 @@ function AppContent() {
         <Header
           user={user}
           onLogout={handleLogout}
-          currentPage={currentPage}
-          onNavigate={handleNavigate}
         />
       )}
       
@@ -260,8 +259,8 @@ function AppContent() {
             path="/dashboard" 
             element={
               <ProtectedRoute user={user} allowedRoles={['donor', 'recipient', 'admin']}>
-                <UserDashboard 
-                  user={user} 
+                <UserDashboard
+                  user={user!}
                   onUpdateUser={handleUpdateUser}
                 />
               </ProtectedRoute>
@@ -272,7 +271,7 @@ function AppContent() {
             path="/admin" 
             element={
               <ProtectedRoute user={user} allowedRoles={['admin']}>
-                <AdminPanel currentUser={user} />
+                <AdminPanel currentUser={user!} />
               </ProtectedRoute>
             } 
           />

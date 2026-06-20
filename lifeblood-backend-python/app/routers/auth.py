@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import blood_group, security
@@ -33,6 +34,9 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.add(user)
         db.commit()
         return Response(status_code=200)
+    except IntegrityError:
+        db.rollback()
+        return Response(status_code=409)
     except Exception as e:
         db.rollback()
         print(f"Registration error: {e}")

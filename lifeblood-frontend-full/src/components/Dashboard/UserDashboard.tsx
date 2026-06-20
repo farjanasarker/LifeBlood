@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User, Heart, Clock, MapPin, Calendar, Plus, Edit, Check, AlertTriangle, Save, X } from 'lucide-react';
-import { User as UserType, DonationRecord } from '../../types';
+import { User, Heart, MapPin, Plus, Edit, Check, AlertTriangle, Save, X } from 'lucide-react';
+import { User as UserType } from '../../types';
 import { dateUtils } from '../../utils/dateUtils';
 import { apiService } from '../../services/apiService';
 import { jwtUtils } from '../../utils/jwtUtils';
@@ -10,8 +10,33 @@ interface UserDashboardProps {
   onUpdateUser: (user: UserType) => void;
 }
 
+interface DonationView {
+  id: string;
+  donationDate: string;
+  location: string;
+  notes: string;
+  recipientContact: string;
+  createdAt: string;
+}
+
+interface ProfileUpdatePayload {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  division: string;
+  district: string;
+  upazila: string;
+  address: string;
+  bloodGroup: string;
+  role: string;
+  isActive: boolean;
+  isVerified: boolean;
+  passwordHash?: string;
+}
+
 export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser }) => {
-  const [donations, setDonations] = useState<DonationRecord[]>([]);
+  const [donations, setDonations] = useState<DonationView[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -51,8 +76,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser
   const hasRoleMismatch = tokenInfo && user && tokenInfo.role !== user.role;
 
   // Use JWT role if there's a mismatch (JWT is more authoritative)
-  const effectiveRole = hasRoleMismatch ? tokenInfo.role : user.role;
-  const effectiveUser = hasRoleMismatch ? { ...user, role: tokenInfo.role } : user;
+  const effectiveRole = hasRoleMismatch ? (tokenInfo.role as UserType['role']) : user.role;
+  const effectiveUser = hasRoleMismatch ? { ...user, role: tokenInfo.role as UserType['role'] } : user;
 
   // Update edit form when user changes
   useEffect(() => {
@@ -82,7 +107,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser
       console.log('JWT token role:', tokenInfo.role);
       
       // Update the user object with correct role from JWT
-      const correctedUser = { ...user, role: tokenInfo.role };
+      const correctedUser = { ...user, role: tokenInfo.role as UserType['role'] };
       onUpdateUser(correctedUser);
     }
     
@@ -122,20 +147,19 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser
       console.log('Raw donations data from API:', donationsData);
       
       // Transform backend data to frontend format
-      const transformedDonations = donationsData.map((donation: any) => ({
+      const transformedDonations: DonationView[] = donationsData.map((donation) => ({
         id: donation.id?.toString() || Math.random().toString(),
-        donorId: donation.donor?.id?.toString() || user.id,
         donationDate: donation.donationDate,
         location: donation.location,
         notes: donation.notes || '',
         recipientContact: donation.recipientContact || '',
         createdAt: donation.createdAt || donation.donationTimestamp || donation.donationDate
       }));
-      
+
       console.log('Transformed donations:', transformedDonations);
       setDonations(transformedDonations);
-      
-    } catch (err: any) {
+
+    } catch (err) {
       console.error('Dashboard: Failed to load donations:', err);
       setError('Failed to load donations. Please try again.');
     } finally {
@@ -188,7 +212,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser
       const updatedUser: UserType = {
         ...effectiveUser,
         lastDonationDate: newDonation.date,
-        isAvailable: false
       };
 
       onUpdateUser(updatedUser);
@@ -203,11 +226,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser
         recipientContact: ''
       });
       
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to add donation';
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add donation';
       setError(errorMessage);
       console.error('Dashboard: Error adding donation:', err);
-      
+
       if (errorMessage.includes('authenticated') || errorMessage.includes('token')) {
         setTimeout(() => {
           window.location.href = '/login';
@@ -253,7 +276,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser
       setEditLoading(true);
       console.log('Dashboard: Updating user profile...');
       
-      const updateData: any = {
+      const updateData: ProfileUpdatePayload = {
         id: effectiveUser.id,
         name: editForm.name.trim(),
         email: editForm.email.trim(),
@@ -273,10 +296,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser
       if (editForm.newPassword) {
         updateData.passwordHash = editForm.newPassword;
       }
-      
+
       console.log('Dashboard: Sending update data:', updateData);
-      
-      await apiService.updateUser(parseInt(effectiveUser.id), updateData);
+
+      await apiService.updateUser(effectiveUser.id, updateData);
       console.log('Dashboard: Profile updated successfully');
       
       // Update local user state
@@ -304,8 +327,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser
         confirmPassword: ''
       }));
       
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to update profile';
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update profile';
       setError(errorMessage);
       console.error('Dashboard: Error updating profile:', err);
       
@@ -401,7 +424,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onUpdateUser
         )}
         
         {/* Debug info (only in development) */}
-        {process.env.NODE_ENV === 'development' && tokenInfo && (
+        {import.meta.env.DEV && tokenInfo && (
           <div className="mt-2 text-xs text-gray-500 space-y-1">
             <div>User ID from token: {tokenInfo.userId} | Role from token: {tokenInfo.role}</div>
             <div>User prop role: {user.role} | Effective role: {effectiveRole}</div>

@@ -281,7 +281,8 @@
 // export default RegisterForm;
 
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Lock, Phone, MapPin, Droplet, UserPlus, AlertCircle, Home } from 'lucide-react';
+import { User as UserIcon, Mail, Lock, Phone, MapPin, Droplet, UserPlus, AlertCircle, Home } from 'lucide-react';
+import type { User } from '../../types';
 
 interface RegisterFormData {
   fullName: string;
@@ -296,7 +297,7 @@ interface RegisterFormData {
 }
 
 interface RegisterFormProps {
-  onRegister: (userData: any) => Promise<{ success: boolean; message?: string; error?: string; user?: any; autoLogin?: boolean }>;
+  onRegister: (userData: RegisterFormData) => Promise<{ success: boolean; message?: string; error?: string; user?: User; autoLogin?: boolean }>;
   onNavigateToLogin: () => void;
 }
 
@@ -363,7 +364,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister, onNavigateToLog
     } else {
       setAvailableDistricts([]);
     }
-  }, [formData.division]);
+  }, [formData.division, formData.district]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -415,9 +416,9 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister, onNavigateToLog
         setError(result.error || "Registration failed");
       }
 
-    } catch (err: any) {
+    } catch (err) {
       console.error("Registration error:", err);
-      setError(err.message || "Registration failed");
+      setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -449,10 +450,10 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister, onNavigateToLog
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
-            <User className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-            <input 
-              type="text" 
-              name="fullName" 
+            <UserIcon className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              name="fullName"
               placeholder="Full Name" 
               value={formData.fullName} 
               onChange={handleChange} 
