@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
-import { apiService } from '../../services/apiService';
 
 interface LoginFormProps {
   onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -31,7 +30,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onNavigateToRegis
       }
       // If successful, App.tsx handleLogin will redirect to home
       
-    } catch (err: any) {
+    } catch (err) {
       console.error('Login error:', err);
       setError('Login failed. Please try again.');
     } finally {

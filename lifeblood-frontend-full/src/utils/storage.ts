@@ -1,4 +1,4 @@
-import { User, DonationRecord, SearchRecord } from '../types';
+import { User, DonationRecord } from '../types';
 
 const USERS_KEY = 'lifeblood_users';
 const DONATIONS_KEY = 'lifeblood_donations';
@@ -15,7 +15,7 @@ export const storageUtils = {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
   },
 
-  getUserById(id: string): User | null {
+  getUserById(id: number): User | null {
     const users = this.getUsers();
     return users.find(user => user.id === id) || null;
   },
@@ -28,17 +28,17 @@ export const storageUtils = {
   saveUser(user: User): void {
     const users = this.getUsers();
     const existingIndex = users.findIndex(u => u.id === user.id);
-    
+
     if (existingIndex >= 0) {
       users[existingIndex] = user;
     } else {
       users.push(user);
     }
-    
+
     this.saveUsers(users);
   },
 
-  deleteUser(userId: string): void {
+  deleteUser(userId: number): void {
     const users = this.getUsers().filter(user => user.id !== userId);
     this.saveUsers(users);
   },
@@ -69,8 +69,8 @@ export const storageUtils = {
     localStorage.setItem(DONATIONS_KEY, JSON.stringify(donations));
   },
 
-  getDonationsByDonor(donorId: string): DonationRecord[] {
-    return this.getDonations().filter(donation => donation.donorId === donorId);
+  getDonationsByDonor(donorId: number): DonationRecord[] {
+    return this.getDonations().filter(donation => donation.donor.id === donorId);
   },
 
   // Initialize with sample data
@@ -78,62 +78,52 @@ export const storageUtils = {
     if (this.getUsers().length === 0) {
       const sampleUsers: User[] = [
         {
-          id: '1',
+          id: 1,
           name: 'John Smith',
           email: 'john@example.com',
-          password: 'password123',
           bloodGroup: 'O+',
           phone: '+1-555-0101',
           address: '123 Main St',
-          city: 'New York',
-          state: 'NY',
-          zipCode: '10001',
-          latitude: 40.7128,
-          longitude: -74.0060,
+          division: 'Dhaka',
+          district: 'Dhaka',
+          upazila: 'Dhanmondi',
           role: 'donor',
           isVerified: true,
           isActive: true,
-          isAvailable: true,
-          registrationDate: '2024-01-15',
+          totalDonations: 0,
         },
         {
-          id: '2',
+          id: 2,
           name: 'Sarah Johnson',
           email: 'sarah@example.com',
-          password: 'password123',
           bloodGroup: 'A+',
           phone: '+1-555-0102',
           address: '456 Oak Ave',
-          city: 'New York',
-          state: 'NY',
-          zipCode: '10002',
-          latitude: 40.7589,
-          longitude: -73.9851,
+          division: 'Dhaka',
+          district: 'Dhaka',
+          upazila: 'Gulshan',
           role: 'donor',
           isVerified: true,
           isActive: true,
-          isAvailable: true,
-          registrationDate: '2024-02-10',
+          totalDonations: 0,
         },
         {
-          id: '3',
+          id: 3,
           name: 'Admin User',
           email: 'admin@lifeblood.com',
-          password: 'admin123',
           bloodGroup: 'AB+',
           phone: '+1-555-0000',
           address: '789 Admin St',
-          city: 'New York',
-          state: 'NY',
-          zipCode: '10003',
+          division: 'Dhaka',
+          district: 'Dhaka',
+          upazila: 'Mirpur',
           role: 'admin',
           isVerified: true,
           isActive: true,
-          isAvailable: false,
-          registrationDate: '2024-01-01',
+          totalDonations: 0,
         }
       ];
-      
+
       this.saveUsers(sampleUsers);
     }
   }

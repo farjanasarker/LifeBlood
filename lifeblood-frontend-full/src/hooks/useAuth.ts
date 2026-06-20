@@ -1,6 +1,32 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { User, AuthState } from '../types';
 import { apiService } from '../services/apiService';
+
+export interface RegisterFormData {
+  fullName: string;
+  email: string;
+  password: string;
+  phone: string;
+  division: string;
+  district: string;
+  upazila: string;
+  bloodGroup: string;
+  address?: string;
+}
+
+interface DonationView {
+  id: string;
+  donorId: number;
+  date: string;
+  donationDate: string;
+  donationTimestamp?: string;
+  location: string;
+  notes: string;
+  recipientContact: string;
+  createdAt: string;
+}
+
 
 export const useAuth = () => {
   const [authState, setAuthState] = useState<AuthState>({
@@ -97,29 +123,33 @@ export const useAuth = () => {
 
       console.log('useAuth: Login successful, state updated');
       return { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('useAuth: Login failed:', error);
-      
+
       let errorMessage = 'Login failed';
-      
-      if (error.response) {
-        switch (error.response.status) {
-          case 401:
-            errorMessage = 'Invalid email or password';
-            break;
-          case 400:
-            errorMessage = 'Please provide valid email and password';
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later';
-            break;
-          default:
-            errorMessage = `Login failed: ${error.response.status}`;
+
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          switch (error.response.status) {
+            case 401:
+              errorMessage = 'Incorrect email or password';
+              break;
+            case 400:
+              errorMessage = 'Please provide valid email and password';
+              break;
+            case 500:
+              errorMessage = 'Server error. Please try again later';
+              break;
+            default:
+              errorMessage = `Login failed: ${error.response.status}`;
+          }
+        } else if (error.request) {
+          errorMessage = 'Network error. Please check your connection';
+        } else {
+          errorMessage = error.message || 'Login failed';
         }
-      } else if (error.request) {
-        errorMessage = 'Network error. Please check your connection';
-      } else {
-        errorMessage = error.message || 'Login failed';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
       }
 
       setAuthState({
@@ -133,15 +163,15 @@ export const useAuth = () => {
   };
 
   const register = async (
-    userData: any
-  ): Promise<{ success: boolean; error?: string; message?: string; user?: any }> => {
+    userData: RegisterFormData
+  ): Promise<{ success: boolean; error?: string; message?: string; user?: User; autoLogin?: boolean }> => {
     try {
       console.log('useAuth: Starting registration process...');
       console.log('useAuth: Registration data:', userData);
 
       // Validate required fields
-      const requiredFields = ['fullName', 'email', 'password', 'phone', 'division', 'district', 'upazila', 'bloodGroup'];
-      const missingFields = requiredFields.filter(field => !userData[field] || userData[field].trim() === '');
+      const requiredFields: (keyof RegisterFormData)[] = ['fullName', 'email', 'password', 'phone', 'division', 'district', 'upazila', 'bloodGroup'];
+      const missingFields = requiredFields.filter(field => !userData[field] || userData[field]?.trim() === '');
       
       if (missingFields.length > 0) {
         const error = `Missing required fields: ${missingFields.join(', ')}`;
@@ -166,7 +196,7 @@ export const useAuth = () => {
         return { 
           success: true, 
           message: 'Registration and login successful!',
-          user: authState.user,
+          user: authState.user ?? undefined,
           autoLogin: true
         };
       } else {
@@ -179,35 +209,39 @@ export const useAuth = () => {
         };
       }
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('useAuth: Registration failed:', error);
 
       let errorMessage = 'Registration failed';
 
-      if (error.response) {
-        console.error('useAuth: Server error response:', error.response.data);
-        switch (error.response.status) {
-          case 409:
-            errorMessage = 'User already exists with this email';
-            break;
-          case 400:
-            errorMessage = error.response.data?.message || 'Invalid data provided';
-            break;
-          case 422:
-            errorMessage = 'Invalid input data. Please check all fields';
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later';
-            break;
-          default:
-            errorMessage = `Registration failed: ${error.response.status}`;
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          console.error('useAuth: Server error response:', error.response.data);
+          switch (error.response.status) {
+            case 409:
+              errorMessage = 'User already exists with this email';
+              break;
+            case 400:
+              errorMessage = error.response.data?.message || 'Invalid data provided';
+              break;
+            case 422:
+              errorMessage = 'Invalid input data. Please check all fields';
+              break;
+            case 500:
+              errorMessage = 'Server error. Please try again later';
+              break;
+            default:
+              errorMessage = `Registration failed: ${error.response.status}`;
+          }
+        } else if (error.request) {
+          console.error('useAuth: Network error:', error.request);
+          errorMessage = 'Network error. Please check your connection';
+        } else {
+          errorMessage = error.message || 'Registration failed';
         }
-      } else if (error.request) {
-        console.error('useAuth: Network error:', error.request);
-        errorMessage = 'Network error. Please check your connection';
-      } else {
+      } else if (error instanceof Error) {
         console.error('useAuth: Unknown error:', error.message);
-        errorMessage = error.message || 'Registration failed';
+        errorMessage = error.message;
       }
 
       return { success: false, error: errorMessage };
@@ -233,8 +267,8 @@ export const useAuth = () => {
       console.log('useAuth: Updating user:', updatedUser);
       
       // Call API to update user on server
-      const response = await apiService.updateUser(
-        parseInt(authState.user.id),
+      await apiService.updateUser(
+        authState.user.id,
         updatedUser
       );
 
@@ -282,7 +316,6 @@ export const useAuth = () => {
 //     return { success: false, error: err.message };
 //   }
 // };
-
 
   // FIXED: Enhanced authentication validation
   const validateAuth = (): boolean => {
@@ -343,7 +376,6 @@ export const useAuth = () => {
       const updatedUserData = {
         ...authState.user!,
         lastDonationDate: donationData.donationDate,
-        isAvailable: false
       };
 
       // Update localStorage to maintain consistency
@@ -358,45 +390,49 @@ export const useAuth = () => {
       console.log('useAuth: User state updated after donation');
       return { success: true };
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('useAuth: Failed to add donation:', error);
-      
+
       let errorMessage = 'Failed to add donation';
-      
-      if (error.response) {
-        switch (error.response.status) {
-          case 400:
-            if (error.response.data?.message?.includes('date')) {
-              errorMessage = 'Please provide a valid donation date in YYYY-MM-DD format';
-            } else {
-              errorMessage = error.response.data?.message || 'Invalid donation data provided';
-            }
-            break;
-          case 401:
-            errorMessage = 'Authentication expired. Please login again.';
-            // Clear auth state on 401
-            logout();
-            break;
-          case 403:
-            errorMessage = 'Access denied';
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later';
-            break;
-          default:
-            errorMessage = `Failed to add donation: ${error.response.status}`;
+
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          switch (error.response.status) {
+            case 400:
+              if (error.response.data?.message?.includes('date')) {
+                errorMessage = 'Please provide a valid donation date in YYYY-MM-DD format';
+              } else {
+                errorMessage = error.response.data?.message || 'Invalid donation data provided';
+              }
+              break;
+            case 401:
+              errorMessage = 'Authentication expired. Please login again.';
+              // Clear auth state on 401
+              logout();
+              break;
+            case 403:
+              errorMessage = 'Access denied';
+              break;
+            case 500:
+              errorMessage = 'Server error. Please try again later';
+              break;
+            default:
+              errorMessage = `Failed to add donation: ${error.response.status}`;
+          }
+        } else if (error.request) {
+          errorMessage = 'Network error. Please check your connection';
+        } else {
+          errorMessage = error.message || 'Failed to add donation';
         }
-      } else if (error.request) {
-        errorMessage = 'Network error. Please check your connection';
-      } else {
-        errorMessage = error.message || 'Failed to add donation';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
       }
 
       return { success: false, error: errorMessage };
     }
   };
 
-  const getDonations = async (): Promise<{ success: boolean; data?: any[]; error?: string }> => {
+  const getDonations = async (): Promise<{ success: boolean; data?: DonationView[]; error?: string }> => {
     console.log('useAuth: Starting getDonations...');
     console.log('useAuth: Current auth state:', {
       hasUser: !!authState.user,
@@ -418,9 +454,9 @@ export const useAuth = () => {
       console.log('useAuth: Donations fetched successfully:', donations);
 
       // FIXED: Transform backend data to frontend format with proper date handling
-      const transformedDonations = donations.map((donation: any) => ({
+      const transformedDonations: DonationView[] = donations.map((donation) => ({
         id: donation.id?.toString() || Math.random().toString(),
-        donorId: donation.donor?.id?.toString() || authState.user!.id,
+        donorId: donation.donor?.id ?? authState.user!.id,
         date: donation.donationDate, // Already formatted by apiService
         donationDate: donation.donationDate, // Frontend format (YYYY-MM-DD)
         donationTimestamp: donation.donationTimestamp, // Keep original timestamp
@@ -432,34 +468,38 @@ export const useAuth = () => {
 
       console.log('useAuth: Transformed donations:', transformedDonations);
       return { success: true, data: transformedDonations };
-    } catch (error: any) {
+    } catch (error) {
       console.error('useAuth: Failed to fetch donations:', error);
-      
+
       let errorMessage = 'Failed to fetch donations';
-      
-      if (error.response) {
-        switch (error.response.status) {
-          case 401:
-            errorMessage = 'Authentication expired. Please login again.';
-            // Clear auth state on 401
-            logout();
-            break;
-          case 403:
-            errorMessage = 'Access denied';
-            break;
-          case 404:
-            console.log('useAuth: No donations found, returning empty array');
-            return { success: true, data: [] };
-          case 500:
-            errorMessage = 'Server error. Please try again later';
-            break;
-          default:
-            errorMessage = `Failed to fetch donations: ${error.response.status}`;
+
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          switch (error.response.status) {
+            case 401:
+              errorMessage = 'Authentication expired. Please login again.';
+              // Clear auth state on 401
+              logout();
+              break;
+            case 403:
+              errorMessage = 'Access denied';
+              break;
+            case 404:
+              console.log('useAuth: No donations found, returning empty array');
+              return { success: true, data: [] };
+            case 500:
+              errorMessage = 'Server error. Please try again later';
+              break;
+            default:
+              errorMessage = `Failed to fetch donations: ${error.response.status}`;
+          }
+        } else if (error.request) {
+          errorMessage = 'Network error. Please check your connection';
+        } else {
+          errorMessage = error.message || 'Failed to fetch donations';
         }
-      } else if (error.request) {
-        errorMessage = 'Network error. Please check your connection';
-      } else {
-        errorMessage = error.message || 'Failed to fetch donations';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
       }
 
       return { success: false, error: errorMessage };
@@ -473,8 +513,8 @@ export const useAuth = () => {
       totalDonations: number;
       lastDonationDate: string | null;
       donationsThisYear: number;
-      nextEligibleDate?: string;
-    }; 
+      nextEligibleDate?: string | null;
+    };
     error?: string 
   }> => {
     console.log('useAuth: Starting getDonationStats...');
@@ -533,9 +573,10 @@ export const useAuth = () => {
       
       console.log('useAuth: Donation stats calculated:', stats);
       return { success: true, stats };
-    } catch (error: any) {
+    } catch (error) {
       console.error('useAuth: Failed to calculate donation stats:', error);
-      return { success: false, error: error.message || 'Failed to calculate donation statistics' };
+      const message = error instanceof Error ? error.message : 'Failed to calculate donation statistics';
+      return { success: false, error: message };
     }
   };
 
