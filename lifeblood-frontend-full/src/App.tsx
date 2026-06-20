@@ -8,6 +8,12 @@ import RegisterForm from './components/Auth/RegisterForm';
 import { DonorSearch } from './components/Search/DonorSearch';
 import { UserDashboard } from './components/Dashboard/UserDashboard';
 import { AdminPanel } from './components/Admin/AdminPanel';
+import { RequestForm } from './components/Requests/RequestForm';
+import { MyRequests } from './components/Requests/MyRequests';
+import { NotificationsPanel } from './components/Requests/NotificationsPanel';
+import { ConversationsList } from './components/Chat/ConversationsList';
+import { ChatWindow } from './components/Chat/ChatWindow';
+import { ChatSettings } from './components/Chat/ChatSettings';
 import { useAuth } from './hooks/useAuth';
 import type { RegisterFormData } from './hooks/useAuth';
 import { storageUtils } from './utils/storage';
@@ -267,15 +273,72 @@ function AppContent() {
             } 
           />
           
-          <Route 
-            path="/admin" 
+          <Route
+            path="/admin"
             element={
               <ProtectedRoute user={user} allowedRoles={['admin']}>
                 <AdminPanel currentUser={user!} />
               </ProtectedRoute>
-            } 
+            }
           />
-          
+
+          <Route
+            path="/requests/new"
+            element={
+              <ProtectedRoute user={user}>
+                <RequestForm />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/requests/mine"
+            element={
+              <ProtectedRoute user={user}>
+                <MyRequests />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/notifications"
+            element={
+              <ProtectedRoute user={user}>
+                <NotificationsPanel />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute user={user}>
+                <ConversationsList />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/chat/settings"
+            element={
+              <ProtectedRoute user={user}>
+                <ChatSettings
+                  chatEnabled={user?.chatEnabled ?? true}
+                  onChatEnabledChange={(enabled) => user && handleUpdateUser({ ...user, chatEnabled: enabled })}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/chat/:userId"
+            element={
+              <ProtectedRoute user={user}>
+                <ChatWindow />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Fallback Route */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

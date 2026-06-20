@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Search, MapPin, Phone, Clock, Droplet, Filter } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, MapPin, Phone, Clock, Droplet, Filter, MessageCircle } from 'lucide-react';
 import { BloodGroup, User } from '../../types';
 import { apiService } from '../../services/apiService';
+import { divisions, districtsByDivision, upazilasByDistrict } from '../../utils/bangladeshLocations';
 
 
 interface DonorSearchProps {
@@ -38,6 +40,7 @@ interface RawDonorResult extends Omit<DonorResult, 'isActive' | 'isVerified' | '
 }
 
 export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
+  const navigate = useNavigate();
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     bloodGroup: 'O+' as BloodGroup,
     division: '',
@@ -51,10 +54,8 @@ export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
 
   const bloodGroups: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-  // Bangladesh divisions for better UX
-  const divisions = [
-    'Dhaka', 'Chittagong', 'Rajshahi', 'Khulna', 'Barisal', 'Sylhet', 'Rangpur', 'Mymensingh'
-  ];
+  const availableDistricts = searchFilters.division ? districtsByDivision[searchFilters.division] || [] : [];
+  const availableUpazilas = searchFilters.district ? upazilasByDistrict[searchFilters.district] || [] : [];
 
   // Backend accepts frontend format (A+, O-) for input
   // But returns enum format (A_PLUS, O_NEG) in response
@@ -167,13 +168,19 @@ export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
 
     setLoading(false);
   };
+  // Clear previous results only when the filters actually change (not when a
+  // search just completed) - otherwise the just-fetched results get wiped
+  // immediately because setHasSearched(true) itself would re-trigger this.
+  const prevFiltersRef = useRef(searchFilters);
   useEffect(() => {
-    if (hasSearched) {
+    const filtersChanged = JSON.stringify(prevFiltersRef.current) !== JSON.stringify(searchFilters);
+    if (filtersChanged) {
+      prevFiltersRef.current = searchFilters;
       setHasSearched(false);
       setDonors([]);
       setError(null);
     }
-  }, [searchFilters, hasSearched]);
+  }, [searchFilters]);
 
   // Calculate eligibility status based on last donation (4 months as per backend)
   const getDonorStatus = (lastDonationDate?: string) => {
@@ -250,7 +257,7 @@ export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
             </label>
              <select
               value={searchFilters.division}
-              onChange={(e) => setSearchFilters(prev => ({ ...prev, division: e.target.value }))}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, division: e.target.value, district: '', upazila: '' }))}
               className="w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500"
                >
               <option value="">Select Division</option>
@@ -264,28 +271,34 @@ export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               District *
             </label>
-            <input
-              type="text"
+            <select
               value={searchFilters.district}
-              onChange={(e) => setSearchFilters(prev => ({ ...prev, district: e.target.value }))}
-              className="w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500"
-              placeholder="Enter district"
-              required
-            />
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, district: e.target.value, upazila: '' }))}
+              disabled={!searchFilters.division}
+              className="w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              <option value="">{searchFilters.division ? 'Select District' : 'Select Division First'}</option>
+              {availableDistricts.map((district) => (
+                <option key={district} value={district}>{district}</option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Upazila *
             </label>
-            <input
-              type="text"
+            <select
               value={searchFilters.upazila}
               onChange={(e) => setSearchFilters(prev => ({ ...prev, upazila: e.target.value }))}
-              className="w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500"
-              placeholder="Enter upazila"
-              required
-            />
+              disabled={!searchFilters.district}
+              className="w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              <option value="">{searchFilters.district ? 'Select Upazila' : 'Select District First'}</option>
+              {availableUpazilas.map((upazila) => (
+                <option key={upazila} value={upazila}>{upazila}</option>
+              ))}
+            </select>
           </div>
 
           <div className="flex items-end">
@@ -412,12 +425,15 @@ export const DonorSearch: React.FC<DonorSearchProps> = ({ currentUser }) => {
                         >
                           Call Now
                         </a>
-                        <a
-                          href={`sms:${donor.phone}?body=Hi ${donor.name}, I need ${displayBloodGroup} blood. Can you help?`}
-                          className="flex-1 bg-gray-600 hover:bg-gray-700 text-white text-center px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                        >
-                          SMS
-                        </a>
+                        {currentUser && currentUser.id !== donor.id && (
+                          <button
+                            onClick={() => navigate(`/chat/${donor.id}`)}
+                            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white text-center px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center"
+                          >
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            Message
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

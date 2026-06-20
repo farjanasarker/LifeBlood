@@ -1,7 +1,16 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/apiConfig';
 import { jwtUtils } from '../utils/jwtUtils';
-import type { BloodGroup, User } from '../types';
+import type {
+  BlockedUserEntry,
+  BloodGroup,
+  ChatMessage,
+  Conversation,
+  ConversationUserRef,
+  DonationRequest,
+  RequestNotification,
+  User,
+} from '../types';
 
 interface UserPayload {
   id?: number;
@@ -65,6 +74,79 @@ interface SearchParams {
   division?: string;
   district?: string;
   upazila?: string;
+}
+
+interface RawDonationRequest {
+  id: number;
+  seeker: { id: number };
+  bloodGroup: string;
+  division: string;
+  district: string;
+  upazila: string;
+  deadline: string;
+  status: string;
+  notes?: string;
+  createdAt?: string;
+  notifiedDonorCount: number;
+}
+
+interface RawNotification {
+  id: number;
+  request: RawDonationRequest;
+  donor: { id: number };
+  status: string;
+  createdAt?: string;
+  respondedAt?: string;
+}
+
+interface RequestPayload {
+  bloodGroup: string;
+  division: string;
+  district: string;
+  upazila: string;
+  deadline: string;
+  notes?: string;
+}
+
+interface RawConversationUserRef {
+  id: number;
+  name: string;
+  bloodGroup: string;
+  role: string;
+}
+
+interface RawMessage {
+  id: number;
+  senderId: number;
+  receiverId: number;
+  type: string;
+  content?: string;
+  latitude?: number;
+  longitude?: number;
+  isRead: boolean;
+  createdAt?: string;
+}
+
+interface RawConversation {
+  otherUser: RawConversationUserRef;
+  lastMessage: RawMessage;
+  unreadCount: number;
+  blockedByMe: boolean;
+  blockedMe: boolean;
+}
+
+interface RawBlockedUserEntry {
+  id: number;
+  blockedUser: RawConversationUserRef;
+  createdAt?: string;
+}
+
+interface SendMessagePayload {
+  receiverId: number;
+  type: 'text' | 'location';
+  content?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 const api = axios.create({
@@ -400,6 +482,60 @@ export const apiService = {
       throw error;
     }
   },
+  createRequest: async (data: RequestPayload): Promise<DonationRequest> => {
+    try {
+      const payload = { ...data, bloodGroup: bloodGroupToEnumMap[data.bloodGroup] || data.bloodGroup };
+      const response = await api.post('/requests', payload);
+      const raw = response.data as RawDonationRequest;
+      return {
+        ...raw,
+        bloodGroup: (bloodGroupFromEnumMap[raw.bloodGroup] || raw.bloodGroup) as BloodGroup,
+        status: raw.status as DonationRequest['status'],
+      };
+    } catch (error) {
+      console.error('API: Failed to create request:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to create blood request. Please try again.'));
+    }
+  },
+  getMyRequests: async (): Promise<DonationRequest[]> => {
+    try {
+      const response = await api.get('/requests/mine');
+      return ((response.data || []) as RawDonationRequest[]).map((r) => ({
+        ...r,
+        bloodGroup: (bloodGroupFromEnumMap[r.bloodGroup] || r.bloodGroup) as BloodGroup,
+        status: r.status as DonationRequest['status'],
+      }));
+    } catch (error) {
+      console.error('API: Failed to fetch my requests:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to fetch your requests.'));
+    }
+  },
+  getMyNotifications: async (): Promise<RequestNotification[]> => {
+    try {
+      const response = await api.get('/requests/notifications/mine');
+      return ((response.data || []) as RawNotification[]).map((n) => ({
+        ...n,
+        status: n.status as RequestNotification['status'],
+        request: {
+          ...n.request,
+          bloodGroup: (bloodGroupFromEnumMap[n.request.bloodGroup] || n.request.bloodGroup) as BloodGroup,
+          status: n.request.status as DonationRequest['status'],
+        },
+      }));
+    } catch (error) {
+      console.error('API: Failed to fetch notifications:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to fetch notifications.'));
+    }
+  },
+  respondToNotification: async (notificationId: number, status: 'accepted' | 'declined') => {
+    try {
+      const response = await api.put(`/requests/notifications/${notificationId}/respond`, { status });
+      return response.data;
+    } catch (error) {
+      console.error('API: Failed to respond to notification:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to submit your response. Please try again.'));
+    }
+  },
   searchDonors: async (params: SearchParams) => {
     try {
       const searchParams = { bloodGroup: params.bloodGroup, division: params.division, district: params.district, upazila: params.upazila };
@@ -411,6 +547,92 @@ export const apiService = {
       console.error('API: Failed to search donors:', error);
       if (axios.isAxiosError(error) && error.response?.status === 404) return [];
       throw error;
+    }
+  },
+  updateChatSettings: async (chatEnabled: boolean): Promise<{ chatEnabled: boolean }> => {
+    try {
+      const response = await api.put('/chat/settings', { chatEnabled });
+      return response.data;
+    } catch (error) {
+      console.error('API: Failed to update chat settings:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to update chat settings.'));
+    }
+  },
+  sendMessage: async (data: SendMessagePayload): Promise<ChatMessage> => {
+    try {
+      const response = await api.post('/messages', data);
+      const raw = response.data as RawMessage;
+      return { ...raw, type: raw.type as ChatMessage['type'] };
+    } catch (error) {
+      console.error('API: Failed to send message:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to send message.'));
+    }
+  },
+  getConversations: async (): Promise<Conversation[]> => {
+    try {
+      const response = await api.get('/messages/conversations');
+      return ((response.data || []) as RawConversation[]).map((c) => ({
+        ...c,
+        otherUser: {
+          ...c.otherUser,
+          bloodGroup: (bloodGroupFromEnumMap[c.otherUser.bloodGroup] || c.otherUser.bloodGroup) as BloodGroup,
+          role: c.otherUser.role as ConversationUserRef['role'],
+        },
+        lastMessage: { ...c.lastMessage, type: c.lastMessage.type as ChatMessage['type'] },
+      }));
+    } catch (error) {
+      console.error('API: Failed to fetch conversations:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to fetch conversations.'));
+    }
+  },
+  getMessages: async (otherUserId: number): Promise<ChatMessage[]> => {
+    try {
+      const response = await api.get(`/messages/${otherUserId}`);
+      return ((response.data || []) as RawMessage[]).map((m) => ({ ...m, type: m.type as ChatMessage['type'] }));
+    } catch (error) {
+      console.error('API: Failed to fetch messages:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to fetch messages.'));
+    }
+  },
+  blockUser: async (userId: number): Promise<BlockedUserEntry> => {
+    try {
+      const response = await api.post(`/blocks/${userId}`);
+      const raw = response.data as RawBlockedUserEntry;
+      return {
+        ...raw,
+        blockedUser: {
+          ...raw.blockedUser,
+          bloodGroup: (bloodGroupFromEnumMap[raw.blockedUser.bloodGroup] || raw.blockedUser.bloodGroup) as BloodGroup,
+          role: raw.blockedUser.role as ConversationUserRef['role'],
+        },
+      };
+    } catch (error) {
+      console.error('API: Failed to block user:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to block user.'));
+    }
+  },
+  unblockUser: async (userId: number): Promise<void> => {
+    try {
+      await api.delete(`/blocks/${userId}`);
+    } catch (error) {
+      console.error('API: Failed to unblock user:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to unblock user.'));
+    }
+  },
+  getBlockedUsers: async (): Promise<BlockedUserEntry[]> => {
+    try {
+      const response = await api.get('/blocks');
+      return ((response.data || []) as RawBlockedUserEntry[]).map((b) => ({
+        ...b,
+        blockedUser: {
+          ...b.blockedUser,
+          bloodGroup: (bloodGroupFromEnumMap[b.blockedUser.bloodGroup] || b.blockedUser.bloodGroup) as BloodGroup,
+          role: b.blockedUser.role as ConversationUserRef['role'],
+        },
+      }));
+    } catch (error) {
+      console.error('API: Failed to fetch blocked users:', error);
+      throw new Error(extractErrorMessage(error, 'Failed to fetch blocked users.'));
     }
   },
 };

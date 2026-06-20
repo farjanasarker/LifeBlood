@@ -283,6 +283,7 @@
 import React, { useState, useEffect } from 'react';
 import { User as UserIcon, Mail, Lock, Phone, MapPin, Droplet, UserPlus, AlertCircle, Home } from 'lucide-react';
 import type { User } from '../../types';
+import { divisions, districtsByDivision, upazilasByDistrict } from '../../utils/bangladeshLocations';
 
 interface RegisterFormData {
   fullName: string;
@@ -301,40 +302,6 @@ interface RegisterFormProps {
   onNavigateToLogin: () => void;
 }
 
-// Bangladesh Divisions and Districts Data
-const divisionsAndDistricts = {
-  "Dhaka": [
-    "Dhaka", "Faridpur", "Gazipur", "Gopalganj", "Kishoreganj", "Madaripur", 
-    "Manikganj", "Munshiganj", "Narayanganj", "Narsingdi", "Rajbari", 
-    "Shariatpur", "Tangail"
-  ],
-  "Chittagong": [
-    "Bandarban", "Brahmanbaria", "Chandpur", "Chittagong", "Comilla", 
-    "Cox's Bazar", "Feni", "Khagrachhari", "Lakshmipur", "Noakhali", "Rangamati"
-  ],
-  "Rajshahi": [
-    "Bogura", "Joypurhat", "Naogaon", "Natore", "Nawabganj", "Pabna", 
-    "Rajshahi", "Sirajganj"
-  ],
-  "Rangpur": [
-    "Dinajpur", "Gaibandha", "Kurigram", "Lalmonirhat", "Nilphamari", 
-    "Panchagarh", "Rangpur", "Thakurgaon"
-  ],
-  "Khulna": [
-    "Bagerhat", "Chuadanga", "Jessore", "Jhenaidah", "Khulna", "Kushtia", 
-    "Magura", "Meherpur", "Narail", "Satkhira"
-  ],
-  "Barishal": [
-    "Barguna", "Barishal", "Bhola", "Jhalokati", "Patuakhali", "Pirojpur"
-  ],
-  "Sylhet": [
-    "Habiganj", "Moulvibazar", "Sunamganj", "Sylhet"
-  ],
-  "Mymensingh": [
-    "Jamalpur", "Mymensingh", "Netrokona", "Sherpur"
-  ]
-};
-
 const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister, onNavigateToLogin }) => {
   const [formData, setFormData] = useState<RegisterFormData>({
     fullName: "",
@@ -352,19 +319,33 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister, onNavigateToLog
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [availableDistricts, setAvailableDistricts] = useState<string[]>([]);
+  const [availableUpazilas, setAvailableUpazilas] = useState<string[]>([]);
 
   // Update districts when division changes
   useEffect(() => {
     if (formData.division) {
-      setAvailableDistricts(divisionsAndDistricts[formData.division as keyof typeof divisionsAndDistricts] || []);
+      setAvailableDistricts(districtsByDivision[formData.division] || []);
       // Reset district if it's not in the new division
-      if (formData.district && !divisionsAndDistricts[formData.division as keyof typeof divisionsAndDistricts]?.includes(formData.district)) {
-        setFormData(prev => ({ ...prev, district: "" }));
+      if (formData.district && !districtsByDivision[formData.division]?.includes(formData.district)) {
+        setFormData(prev => ({ ...prev, district: "", upazila: "" }));
       }
     } else {
       setAvailableDistricts([]);
     }
   }, [formData.division, formData.district]);
+
+  // Update upazilas when district changes
+  useEffect(() => {
+    if (formData.district) {
+      setAvailableUpazilas(upazilasByDistrict[formData.district] || []);
+      // Reset upazila if it's not in the new district
+      if (formData.upazila && !upazilasByDistrict[formData.district]?.includes(formData.upazila)) {
+        setFormData(prev => ({ ...prev, upazila: "" }));
+      }
+    } else {
+      setAvailableUpazilas([]);
+    }
+  }, [formData.district, formData.upazila]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -514,7 +495,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister, onNavigateToLog
                 className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 appearance-none bg-white"
               >
                 <option value="">Select Division</option>
-                {Object.keys(divisionsAndDistricts).map((division) => (
+                {divisions.map((division) => (
                   <option key={division} value={division}>
                     {division}
                   </option>
@@ -541,15 +522,24 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister, onNavigateToLog
               ))}
             </select>
 
-            <input 
-              type="text" 
-              name="upazila" 
-              placeholder="Upazila (e.g., Wari)" 
-              value={formData.upazila} 
-              onChange={handleChange} 
-              required 
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200" 
-            />
+            {/* Upazila Dropdown */}
+            <select
+              name="upazila"
+              value={formData.upazila}
+              onChange={handleChange}
+              required
+              disabled={!formData.district}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 appearance-none bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              <option value="">
+                {formData.district ? "Select Upazila" : "Select District First"}
+              </option>
+              {availableUpazilas.map((upazila) => (
+                <option key={upazila} value={upazila}>
+                  {upazila}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Address Field */}

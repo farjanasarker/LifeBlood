@@ -132,7 +132,7 @@ export const useAuth = () => {
         if (error.response) {
           switch (error.response.status) {
             case 401:
-              errorMessage = 'Invalid email or password';
+              errorMessage = 'Incorrect email or password';
               break;
             case 400:
               errorMessage = 'Please provide valid email and password';
