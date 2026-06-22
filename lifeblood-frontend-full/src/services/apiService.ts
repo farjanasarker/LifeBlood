@@ -149,6 +149,11 @@ interface SendMessagePayload {
   longitude?: number;
 }
 
+export interface AssistantChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -633,6 +638,15 @@ export const apiService = {
     } catch (error) {
       console.error('API: Failed to fetch blocked users:', error);
       throw new Error(extractErrorMessage(error, 'Failed to fetch blocked users.'));
+    }
+  },
+  assistantChat: async (message: string, history: AssistantChatTurn[]): Promise<string> => {
+    try {
+      const response = await api.post('/assistant/chat', { message, history });
+      return (response.data as { answer: string }).answer;
+    } catch (error) {
+      console.error('API: Failed to get assistant reply:', error);
+      throw new Error(extractErrorMessage(error, 'The assistant is unavailable right now. Please try again later.'));
     }
   },
 };

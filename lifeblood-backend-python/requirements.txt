@@ -6,3 +6,11 @@ pyjwt==2.9.0
 bcrypt==4.2.0
 python-dotenv==1.0.1
 python-dateutil==2.9.0.post0
+
+# AI Assistant (RAG)
+langchain==0.3.7
+langchain-community==0.3.7
+langchain-groq==0.2.1
+langchain-huggingface==0.1.2
+chromadb==0.5.20
+sentence-transformers==3.3.1

@@ -14,6 +14,7 @@ import { NotificationsPanel } from './components/Requests/NotificationsPanel';
 import { ConversationsList } from './components/Chat/ConversationsList';
 import { ChatWindow } from './components/Chat/ChatWindow';
 import { ChatSettings } from './components/Chat/ChatSettings';
+import { AssistantWidget } from './components/Assistant/AssistantWidget';
 import { useAuth } from './hooks/useAuth';
 import type { RegisterFormData } from './hooks/useAuth';
 import { storageUtils } from './utils/storage';
@@ -345,6 +346,8 @@ function AppContent() {
       </main>
       
       {showHeaderFooter && <Footer />}
+
+      <AssistantWidget />
     </div>
   );
 }

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS
-from app.routers import admin, auth, chat, donations, requests, search, users
+from app.routers import admin, assistant, auth, chat, donations, requests, search, users
 
 app = FastAPI()
 
@@ -22,6 +22,7 @@ app.include_router(search.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(requests.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(assistant.router, prefix="/api")
 
 
 @app.get("/api/health")
